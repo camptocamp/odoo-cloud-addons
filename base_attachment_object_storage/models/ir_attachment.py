@@ -281,7 +281,7 @@ class IrAttachment(models.Model):
         self.ensure_one()
         _logger.info("inspecting attachment %s (%d)", self.name, self.id)
         fname = self.store_fname
-        storage = fname.partition("://")[0]
+        storage = fname and fname.partition("://")[0]
         if self.is_storage_disabled(storage):
             fname = False
         if fname:
