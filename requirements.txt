@@ -1,5 +1,5 @@
 azure-storage-blob==12.16.0
-azure-identity==1.13.0
+azure-identity==1.16.1
 boto3==1.26.7
 redis==4.3.4
 python-json-logger==2.0.4
