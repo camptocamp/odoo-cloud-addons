@@ -5,7 +5,7 @@
         <field name="key">ir_attachment.storage.force.database</field>
         <field
             name="value"
-        >{"image/": 51200, "application/javascript": 0, "text/css": 0}</field>
+        >{"image/": 51200, "application/javascript": 0, "text/css": 0, "text/scss": 0, "text/plain": 0, "application/octet-stream": 0}</field>
     </record>
 
 </odoo>
