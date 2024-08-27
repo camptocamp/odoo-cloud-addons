@@ -30,7 +30,7 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _monitoring_blacklist(cls, request):
         path_info = request.httprequest.environ.get("PATH_INFO")
-        if path_info.startswith("/longpolling/"):
+        if path_info.startswith(("/longpolling/", "/websocket")):
             return True
         return False
 
