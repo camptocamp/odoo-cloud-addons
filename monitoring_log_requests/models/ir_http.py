@@ -6,7 +6,7 @@ import logging
 import time
 
 from odoo import models
-from odoo.http import request as http_request
+from odoo.http import Response, request as http_request
 from odoo.tools.config import config
 
 _logger = logging.getLogger("monitoring.http.requests")
@@ -30,7 +30,7 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _monitoring_blacklist(cls, request):
         path_info = request.httprequest.environ.get("PATH_INFO")
-        if path_info.startswith("/longpolling/"):
+        if path_info.startswith(("/longpolling/", "/websocket")):
             return True
         return False
 
@@ -62,8 +62,10 @@ class IrHttp(models.AbstractModel):
             # response things
             "response_status_code": None,
         }
-        if hasattr(request, "status_code"):
-            info["status_code"] = response.status_code
+        if isinstance(response, Response) and hasattr(response, "status_code"):
+            info["response_status_code"] = response.status_code
+        else:
+            info["response_status_code"] = 200
         if hasattr(request, "session"):
             info.update(
                 {
