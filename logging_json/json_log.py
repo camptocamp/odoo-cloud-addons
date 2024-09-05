@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 import uuid
-from distutils.util import strtobool
+from .strtobool import strtobool
 
 from odoo import http
 

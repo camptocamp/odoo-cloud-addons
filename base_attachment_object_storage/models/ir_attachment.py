@@ -6,7 +6,7 @@ import logging
 import os
 import time
 from contextlib import closing, contextmanager
-from distutils.util import strtobool
+from .strtobool import strtobool
 
 import psycopg2
 
