@@ -5,7 +5,7 @@
 {
     "name": "Cloud Platform Azure",
     "summary": "Addons required for the Camptocamp Cloud Platform on Azure",
-    "version": "17.0.1.0.0",
+    "version": "18.0.1.0.0",
     "author": "Camptocamp,Odoo Community Association (OCA)",
     "license": "AGPL-3",
     "category": "Extra Tools",
@@ -20,5 +20,5 @@
     ],
     "website": "https://github.com/camptocamp/odoo-cloud-platform",
     "data": [],
-    "installable": False,
+    "installable": True,
 }

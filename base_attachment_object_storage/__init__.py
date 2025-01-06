@@ -2,7 +2,7 @@ from . import models
 from odoo.http import Stream
 
 
-old_from_attachment = Stream.from_attachment
+old_from_attachment = Stream.as_attachment
 
 
 @classmethod
@@ -23,4 +23,4 @@ def from_attachment(cls, attachment):
     return old_from_attachment(attachment)
 
 
-Stream.from_attachment = from_attachment
+Stream.as_attachment = from_attachment
