@@ -56,7 +56,7 @@ repos:
       - id: oca-gen-addon-readme
         args:
           - --addons-dir=.
-          - --branch=17.0
+          - --branch=18.0
           - --org-name=camptocamp
           - --repo-name=odoo-cloud-platform
           - --if-source-changed
