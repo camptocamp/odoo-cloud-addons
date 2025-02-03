@@ -1,3 +1,5 @@
+from typing import Union
+
 _MAP = {
     "y": True,
     "yes": True,
@@ -14,8 +16,11 @@ _MAP = {
 }
 
 
-def strtobool(value):
-    try:
-        return _MAP[str(value).lower()]
-    except KeyError as error:
-        raise ValueError(f'"{value}" is not a valid bool value') from error
+def strtobool(value: Union[str, int]) -> bool:
+    """Convert a string or integer representation to a boolean value."""
+    result = _MAP.get(str(value).strip().lower())
+
+    if result is None:
+        raise ValueError(f"Invalid boolean value: {repr(value)}")
+
+    return result

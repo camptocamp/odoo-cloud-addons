@@ -3,6 +3,7 @@
 
 import json
 import logging
+from typing import Optional, List, Dict, Any
 
 from odoo.service import security
 from odoo.tools._vendor.sessions import SessionStore
@@ -24,93 +25,72 @@ class RedisSessionStore(SessionStore):
         self,
         redis,
         session_class=None,
-        prefix="",
-        expiration=None,
-        anon_expiration=None,
-    ):
+        prefix: str = "",
+        expiration: Optional[int] = None,
+        anon_expiration: Optional[int] = None,
+    ) -> None:
         super().__init__(session_class=session_class)
         self.redis = redis
-        if expiration is None:
-            self.expiration = DEFAULT_SESSION_TIMEOUT
-        else:
-            self.expiration = expiration
-        if anon_expiration is None:
-            self.anon_expiration = DEFAULT_SESSION_TIMEOUT_ANONYMOUS
-        else:
-            self.anon_expiration = anon_expiration
-        self.prefix = "session:"
-        if prefix:
-            self.prefix = f"{self.prefix}:{prefix}:"
+        self.expiration = expiration if expiration is not None else DEFAULT_SESSION_TIMEOUT
+        self.anon_expiration = anon_expiration if anon_expiration is not None else DEFAULT_SESSION_TIMEOUT_ANONYMOUS
+        self.prefix = f"session:{prefix}:" if prefix else "session:"
 
-    def build_key(self, sid):
+    def build_key(self, sid: str) -> str:
+        """Build the Redis key for a session ID."""
         return f"{self.prefix}{sid}"
 
-    def save(self, session):
+    def save(self, session) -> Optional[bool]:
+        """Save session data in Redis with an expiration time."""
         key = self.build_key(session.sid)
 
         # allow to set a custom expiration for a session
         # such as a very short one for monitoring requests
-        if session.uid:
-            expiration = session.expiration or self.expiration
-        else:
-            expiration = session.expiration or self.anon_expiration
-        if _logger.isEnabledFor(logging.DEBUG):
-            if session.uid:
-                user_msg = f"user '{session.login}' (id: {session.uid})"
-            else:
-                user_msg = "anonymous user"
-            _logger.debug(
-                "saving session with key '%s' and " "expiration of %s seconds for %s",
-                key,
-                expiration,
-                user_msg,
-            )
+        expiration = session.expiration or (self.expiration if session.uid else self.anon_expiration)
 
-        data = json.dumps(dict(session), cls=json_encoding.SessionEncoder).encode(
-            "utf-8"
-        )
+        if _logger.isEnabledFor(logging.DEBUG):
+            user_msg = f"user '{session.login}' (id: {session.uid})" if session.uid else "anonymous user"
+            _logger.debug(f"Saving session '{key}' with expiration {expiration} seconds for {user_msg}")
+
+        data = json.dumps(dict(session), cls=json_encoding.SessionEncoder).encode("utf-8")
         if self.redis.set(key, data):
             return self.redis.expire(key, expiration)
+        return None
 
-    def delete(self, session):
+    def delete(self, session) -> int:
+        """Delete a session from Redis."""
         key = self.build_key(session.sid)
-        _logger.debug("deleting session with key %s", key)
+        _logger.debug(f"Deleting session with '{key}'")
         return self.redis.delete(key)
 
-    def get(self, sid):
+    def get(self, sid: str):
+        """Retrieve a session from Redis, or return a new one if not found."""
         if not self.is_valid_key(sid):
-            _logger.debug(
-                "session with invalid sid '%s' has been asked, " "returning a new one",
-                sid,
-            )
+            _logger.debug(f"Invalid session ID '{sid}' requested, returning a new session.")
             return self.new()
 
         key = self.build_key(sid)
         saved = self.redis.get(key)
         if not saved:
-            _logger.debug(
-                "session with non-existent key '%s' has been asked, "
-                "returning a new one",
-                key,
-            )
+            _logger.debug(f"Non-existent session '{key}' requested, returning a new session.")
             return self.new()
+
         try:
             data = json.loads(saved.decode("utf-8"), cls=json_encoding.SessionDecoder)
-        except ValueError:
-            _logger.debug(
-                "session for key '%s' has been asked but its json "
-                "content could not be read, it has been reset",
-                key,
-            )
+        except (ValueError, json.JSONDecodeError):
+            _logger.warning(f"Corrupt session data for key '{key}', resetting session.")
             data = {}
+
         return self.session_class(data, sid, False)
 
-    def list(self):
-        keys = self.redis.keys("%s*" % self.prefix)
+    def list(self) -> List[str]:
+        """List all session keys in Redis."""
+        # More efficient scanning
+        keys = [key for key in self.redis.scan_iter(f"{self.prefix}*")]
         _logger.debug("a listing redis keys has been called")
-        return [key[len(self.prefix) :] for key in keys]
+        return [key.decode("utf-8")[len(self.prefix) :] for key in keys]
 
-    def rotate(self, session, env):
+    def rotate(self, session, env) -> None:
+        """Rotate session ID and regenerate session token if user is logged in."""
         self.delete(session)
         session.sid = self.generate_key()
         if session.uid and env:

@@ -3,6 +3,8 @@
 
 import logging
 import os
+from pathlib import Path
+from typing import Optional
 
 from odoo import http
 from odoo.tools import config
@@ -21,29 +23,32 @@ except ImportError:
     _logger.debug("Cannot 'import redis'.")
 
 
-def is_true(strval):
-    return bool(strtobool(strval or "0".lower()))
+def is_true(strval: Optional[str]) -> bool:
+    """Convert string value to boolean."""
+    return bool(strtobool((strval or "0").lower()))
 
 
-sentinel_host = os.environ.get("ODOO_SESSION_REDIS_SENTINEL_HOST")
-sentinel_master_name = os.environ.get("ODOO_SESSION_REDIS_SENTINEL_MASTER_NAME")
+# Retrieve Redis session configurations from environment variables
+sentinel_host = os.getenv("ODOO_SESSION_REDIS_SENTINEL_HOST")
+sentinel_master_name = os.getenv("ODOO_SESSION_REDIS_SENTINEL_MASTER_NAME")
 if sentinel_host and not sentinel_master_name:
     raise Exception(
         "ODOO_SESSION_REDIS_SENTINEL_MASTER_NAME must be defined "
         "when using session_redis"
     )
-sentinel_port = int(os.environ.get("ODOO_SESSION_REDIS_SENTINEL_PORT", 26379))
-host = os.environ.get("ODOO_SESSION_REDIS_HOST", "localhost")
-port = int(os.environ.get("ODOO_SESSION_REDIS_PORT", 6379))
-prefix = os.environ.get("ODOO_SESSION_REDIS_PREFIX")
-url = os.environ.get("ODOO_SESSION_REDIS_URL")
-password = os.environ.get("ODOO_SESSION_REDIS_PASSWORD")
-expiration = os.environ.get("ODOO_SESSION_REDIS_EXPIRATION")
-anon_expiration = os.environ.get("ODOO_SESSION_REDIS_EXPIRATION_ANONYMOUS")
+sentinel_port = int(os.getenv("ODOO_SESSION_REDIS_SENTINEL_PORT", 26379))
+host = os.getenv("ODOO_SESSION_REDIS_HOST", "localhost")
+port = int(os.getenv("ODOO_SESSION_REDIS_PORT", 6379))
+prefix = os.getenv("ODOO_SESSION_REDIS_PREFIX")
+url = os.getenv("ODOO_SESSION_REDIS_URL")
+password = os.getenv("ODOO_SESSION_REDIS_PASSWORD")
+expiration = os.getenv("ODOO_SESSION_REDIS_EXPIRATION")
+anon_expiration = os.getenv("ODOO_SESSION_REDIS_EXPIRATION_ANONYMOUS")
 
 
 @lazy_property
-def session_store(self):
+def session_store(self) -> RedisSessionStore:
+    """Configure Redis session storage."""
     if sentinel_host:
         sentinel = Sentinel([(sentinel_host, sentinel_port)], password=password)
         redis_client = sentinel.master_for(sentinel_master_name)
@@ -61,30 +66,32 @@ def session_store(self):
 
 
 def purge_fs_sessions(path):
-    for fname in os.listdir(path):
-        path = os.path.join(path, fname)
+    """Remove old file-based sessions."""
+    session_path = Path(path)
+    if not session_path.exists():
+        _logger.warning(f"Session directory '{session_path}' does not exist.")
+        return
+
+    for session_file in session_path.iterdir():
         try:
-            os.unlink(path)
-        except OSError:
-            _logger.warning("OS Error during purge of redis sessions.")
+            session_file.unlink()
+            _logger.debug(f"Deleted session file: {session_file}")
+        except PermissionError:
+            _logger.warning(f"Permission denied while deleting session file: {session_file}")
+        except OSError as e:
+            _logger.warning(f"Error deleting session file {session_file}: {str(e)}")
 
 
-if is_true(os.environ.get("ODOO_SESSION_REDIS")):
+if is_true(os.getenv("ODOO_SESSION_REDIS")):
+    storage_info = f"Redis with prefix '{prefix}' on "
     if sentinel_host:
-        _logger.debug(
-            "HTTP sessions stored in Redis with prefix '%s'. "
-            "Using Sentinel on %s:%s",
-            prefix or "",
-            sentinel_host,
-            sentinel_port,
-        )
+        storage_info += f"Sentinel {sentinel_host}:{sentinel_port}"
     else:
-        _logger.debug(
-            "HTTP sessions stored in Redis with prefix '%s' on " "%s:%s",
-            prefix or "",
-            host,
-            port,
-        )
+        storage_info += f"{host}:{port}"
+
+    _logger.debug("HTTP sessions stored in %s.", storage_info)
+
     http.Application.session_store = session_store
-    # clean the existing sessions on the file system
+
+    # Clean existing sessions stored in the file system
     purge_fs_sessions(config.session_dir)
